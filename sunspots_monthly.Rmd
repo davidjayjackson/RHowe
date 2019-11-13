@@ -13,7 +13,7 @@ fig_caption: false
 
 ```{r, include=FALSE, purl=FALSE}
 library(knitr)
-source("app_functions.R")
+source("./app_functions.R")
 
 #set echo=FALSE to suppress code chunks appearing in text
 #setting it in the individual code chunks below doesn't appear to work
@@ -26,7 +26,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 
 ```{r, echo=FALSE,include=FALSE, cache=FALSE}
-da1=read.csv("/Users/howe/Desktop/sunspots_files/aavso_month_all.csv",header=TRUE)
+da1=read.csv("./aavso_month_all.csv",header=TRUE)
 head(da1)
 
 #rebuild date column
@@ -653,8 +653,8 @@ cat("\n\n")
 #Correlation of W vs. G
 ```{r, echo=FALSE,include=FALSE}
 lags=20
-source("ccm.r")
-source("mq.r")
+source("./ccm.r")
+source("./mq.r")
 library("MTS")
 ```
 
