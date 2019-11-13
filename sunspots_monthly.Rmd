@@ -1,0 +1,679 @@
+---
+title: "sunspots monthly"
+author: "AAVSO, collection of interesting people..."
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: pdf_document
+highlight: pygments
+toc: true
+toc_depth: 4
+number_sections: true
+keep_tex: true
+fig_caption: false
+---
+
+```{r, include=FALSE, purl=FALSE}
+library(knitr)
+source("app_functions.R")
+
+#set echo=FALSE to suppress code chunks appearing in text
+#setting it in the individual code chunks below doesn't appear to work
+knitr::opts_chunk$set(echo = FALSE)
+
+#code chunks are defined here
+#knitr::read_chunk('report_test.R')
+
+```
+
+
+```{r, echo=FALSE,include=FALSE, cache=FALSE}
+da1=read.csv("/Users/howe/Desktop/sunspots_files/aavso_month_all.csv",header=TRUE)
+head(da1)
+
+#rebuild date column
+zm = factor(da1$month,levels=month.abb,ordered=TRUE)
+d = lapply(seq(nrow(da1)), FUN=function(i) {
+  #s = sprintf("%d-%s-%d",da1$year[i],as.integer(zm[i]),da1$day[i])
+  s = sprintf("%d-%s-%d",da1$year[i],da1$month[i],da1$day[i])
+  #print(s)
+  tryCatch({
+    z=as.Date(s)
+  },
+  error = function(err) {
+    z=NA
+  })
+  return(z)
+})
+
+#how many bad dates?
+sum(is.na(d))
+bad = which(is.na(d))
+bad
+if( length(bad) > 0 ) {
+  ii = seq(from=(bad-3),to=(bad+3))
+  da1[ii,]
+}
+
+#as integers
+d = sapply(seq(nrow(da1)), FUN=function(i) {
+  z <- as.integer(da1$year[i])*10000 + as.integer(zm[i]) * 100 + as.integer(da1$day[i])
+})
+
+#as strings - use this
+ds = sapply(seq(nrow(da1)), FUN=function(i) {
+  s = sprintf("%d-%s-%.02d",da1$year[i],da1$month[i],da1$day[i])
+})
+
+#get periods
+ppdf = findPeriod(da1$W)
+
+#try differencing
+dda1 = ts(diff(da1$W))
+plot(dda1)
+plot_dist(dda1)
+plot_acf_pacf(dda1)
+tests(dda1)
+z = findPeriod(da1$W)
+
+dlda1 = ts(diff(log(da1$W+1)))
+
+plot(dlda1)
+plot_dist(dlda1)
+plot_acf_pacf(dlda1)
+tests(dlda1)
+z = findPeriod(da1$W)
+
+```
+
+\newpage
+#Find Seasonal Period
+The following table shows the top periods from TSA::periodogram(). The highest power period is `r ppdf$period[1]`, which is `r round((ppdf$period[1]/365),digits=1)` years. Sunspot activity is assumed to be on 11 year cycles. The closest period that matches this is `r ppdf$period[2]`, or `r round((ppdf$period[2]/365),digits=1)` years. However, this is significantly lower power.
+
+```{r}
+knitr::kable(head(ppdf), caption="Strongest Seasonal Periods")
+```
+
+
+```{r,echo=FALSE, include=TRUE, results='asis'}
+
+#use this period
+freq = ppdf$period[2]
+
+#create new data frame using the dates as strings
+da2 = data.frame(date=ds,g=ts(da1$g, frequency=freq),s=ts(da1$s, frequency=freq),w=ts(da1$W, frequency=freq))
+
+#function for doing EDA
+eda = function(y, dates, ts_name) {
+
+  #plot raw ts
+  cat("\n\n##Time Series\n\n")
+  plot_ts(y, tdx=dates, main=ts_name)
+  
+  #plot seasonal decomposition
+  cat("\n\n##Seasonal Decomposition\n\n")
+  dd = stl(y, s.window="periodic")
+  plot(dd, main = sprintf("%s, season = %d", ts_name, freq))
+  
+  ## ACF/PACF:
+  cat("\n\n##ACF/PACF\n\n")
+  plot_acf_pacf(y,main=ts_name)
+  cat('\n\n')
+  
+  ## Distributions
+  cat("\n\n##Distributions\n\n")
+  plot_dist(y)
+  cat('\n\n')
+  
+  ## Histogram
+  cat("\n\n##Histogram vs Various Distributions\n\n")
+  cat(sprintf("\n\nNote: Variance = %.2f, which is significantly greater than the mean (%.2f), which indicates that the data is closer to a negative binomial distribution.\n\n",round(var(y),digits=2),round(mean(y),digits=2)))
+  if(sum(which(y<0))==0) {
+    plot_hist(y)
+  } else {
+    plot_hist_diff(y)
+  }
+  cat('\n\n')
+
+  #summary   
+  cat("\n\n##Summary Statistics\n\n")
+  df = summary_table(y,ts_name)
+  print(knitr::kable(df,digits=3,caption=sprintf("%s: Summary Statistics", ts_name)))
+  cat('\n\n')
+  
+  #hypothesis tests
+  cat(sprintf("\n\n##Hypothesis Tests\n\n", ts_name))
+  df = tests(y)
+  print(knitr::kable(df,digits=3,caption=sprintf("%s: Hypothesis Tests",ts_name)))
+  cat('\n\n')
+}
+
+```
+
+#Exploratory Data Analyis of W
+```{r, echo=FALSE,include=TRUE,results='asis'}
+eda(da2$w,ds,'w')
+```
+
+#EDA of diff(W, `r freq`)
+A seasonal differencing, using lag = `r freq`, results in a distribution that is much closer to normal.
+
+```{r,echo=FALSE, include=TRUE, results='asis' }
+dw = diff(da2$w,freq)
+eda(dw,ds,sprintf('diff(w,lag=%d)',freq))
+
+```
+
+#EDA of diff(log(W), `r freq`)
+A seasonal log returns, using lag = `r freq`, doesn't seem to be any better than seasonal differencing.
+
+```{r,echo=FALSE, include=TRUE, results='asis'}
+dlw = diff(log(da2$w+1),freq)
+eda(dlw,ds,sprintf('diff(log(w),lag=%d)',freq))
+
+```
+
+#Model 1
+Attempt to build an Arima model of w with regression components where x=1 for all values where w==0. This doesn't seem to help at all.
+
+
+```{r,echo=FALSE, include=TRUE}
+xreg = ifelse(da2$w==0,1,0)
+#m = auto.arima(da2$w,seasonal=FALSE)
+m = auto.arima(da2$w,seasonal=FALSE,xreg=xreg)
+summary(m)
+```
+##Residuals
+```{r,echo=FALSE, include=TRUE,results='asis'}
+plot_fit(m,ds)
+cat("\n\n")
+plot_fit(m,ds,last=100)
+cat("\n\n")
+plot_dist(residuals(m))
+cat("\n\n")
+acf(residuals(m))
+cat("\n\n")
+tsdiag(m)
+cat("\n\n")
+
+```
+
+#Model 2
+Use a Hidden Markov Chain to generate regression components for differenced data. The BIC kept reducing as the number of states increased, but the difference trailed off for nstates > 3 and the number of iterations greatly increased, so I continuing on with nstates=3. Failed at nstates > 8.
+
+```{r,echo=FALSE, include=TRUE}
+
+da3 = data.frame(w=dw)
+
+maxstates=3
+bic = rep(NaN,maxstates)
+states = seq(maxstates)+1
+
+#find the lowest BIC
+#for( i in seq_along(states) ) {
+#  hmm <- depmix(w ~ 1, family = gaussian(), nstates = states[i], data=da3)
+#  hmm.fit <- fit(hmm, verbose = FALSE)
+#  bic[i] = BIC(hmm.fit)
+#}
+
+#lowest BIC is best
+#order(bic)
+
+hmm <- depmix(w ~ 1, family = gaussian(), nstates = 3, data=da3)
+hmm.fit <- fit(hmm, verbose = FALSE)
+summary(hmm.fit)
+post.probs <- posterior(hmm.fit)
+```
+```{r,echo=FALSE, include=TRUE, results='asis'}
+plot(post.probs$state, type='s', main='sunspots', xlab='', ylab='Regime')
+matplot(post.probs[,-1], type='l', main='sunspots Posterior Probabilities', ylab='Probability')
+legend(x='topleft', c('A','B', 'C'), fill=1:3, bty='n')
+```
+
+# Model 3
+Fit an ARIMA model of the seasonally differenced W with the seasonal component represented as a Fourier Series. The seasonal period is too long to use a seasonal ARIMA model.
+
+```{r,echo=FALSE, include=TRUE}
+arima_ft = function(y, KK=12, df_post_probs=NULL) {
+
+  #season
+  periods = attr(y,"msts")
+  if( is.null(periods) ) {
+    periods = frequency(y)
+  }
+  nPeriods = length(periods)
+
+  fuur = fourier(y, K = rep(KK,nPeriods))
+  
+  if( !is.null(post.probs) ) {
+    xreg = as.matrix(cbind(fuur,df_post_probs))
+  } else {
+    xreg = fuur
+  }
+  m = auto.arima(y, seasonal=FALSE, xreg=xreg)
+
+  return(m)  
+}
+
+m = arima_ft(dw)
+summary(m)
+```
+##Residuals
+```{r,echo=FALSE, include=TRUE, results='asis'}
+plot_fit(m,ds)
+cat("\n\n")
+plot_fit(m,ds,last=100)
+cat("\n\n")
+plot_dist(residuals(m))
+cat("\n\n")
+acf(residuals(m))
+cat("\n\n")
+tsdiag(m)
+cat("\n\n")
+```
+
+# Model 4
+Fit an ARIMA model of the seasonally differenced W with the seasonal component represented as a Fourier Series. Include the Hidden Markov Chain posterior probabilities as regression components. The posterior probabilities do not improve the model fit but does reduce the model order.
+
+```{r,echo=FALSE, include=TRUE}
+#convert post.probs into categorical variables
+#df_post_probs = data.frame(
+#  state1 = ifelse(post.probs$state==1,1,0),
+#  state2 = ifelse(post.probs$state==2,1,0),
+#  state3 = ifelse(post.probs$state==3,1,0)
+#)
+
+#states as categorical variables give a 'No suitable ARIMA model found' error
+#m = arima_ft(dw, df_post_probs)
+
+#states as numerics are really categorical, doesn't make sense as a numeric
+m = arima_ft(dw, KK=12, post.probs[1])
+summary(m)
+```
+##Residuals
+```{r,echo=FALSE, include=TRUE, results='asis'}
+plot_fit(m,ds)
+cat("\n\n")
+plot_fit(m,ds,last=100)
+cat("\n\n")
+plot_dist(residuals(m))
+cat("\n\n")
+acf(residuals(m))
+cat("\n\n")
+tsdiag(m)
+cat("\n\n")
+```
+
+
+# model 5
+Try an ets model. Seasonal period is too long, so do a non seasonal
+```{r,echo=FALSE, include=TRUE}
+m = ets(da2$w,model='ZZN')
+summary(m)
+```
+
+##Residuals
+```{r,echo=FALSE, include=TRUE, results='asis'}
+plot_fit(m,ds)
+cat("\n\n")
+plot_fit(m,ds,last=100)
+cat("\n\n")
+plot_dist(residuals(m))
+cat("\n\n")
+acf(residuals(m))
+cat("\n\n")
+```
+
+# model 6
+Random forest. This doesn't assume the data is stationary, so using the original undifferenced data. Might consider using the mean for the trend rather than a model. It seems that there should be no trend, especially considering the data covers a tiny fraction of the sun's lifetime.
+
+Note: this takes a while to run.
+
+After running it, I see something weird in the data. The fitted model seems to match with the data, until the last period. The last period appears to be longer than all of the previous periods. I didn't notice this until running this model. Going back and looking at the original data, I does look like there is a larger gap between the last two peaks than the rest.
+
+
+```{r,echo=FALSE, include=TRUE}
+
+library(randomForest)
+
+#fit a random forest model
+#train - the time series to fit
+#hf - forecast horizon. Needed because at least this much data from train must be reserved
+#mtry - randomForest() mtry parameter
+#nodesize - randomForest() nodesize parameter
+#KK - fourier() K parameter
+fit_rf = function(train, periods, hf, mtry, nodesize, KK) {
+  
+  #get all periods
+  nPeriods = length(periods)
+  
+  #use the minimum period to build training and test matrix
+  #must be a multiple of periods > hf
+  window_size = min(periods)
+  window_size = window_size * ceiling(hf/window_size)
+  
+  #for decomposition
+  period = max(periods)
+
+  #length of training set
+  N <- length(train)
+
+  #for creating fourier series
+  train_msts = msts(as.vector(train),seasonal.periods = periods)
+  
+  #for decomposition
+  train_ts = ts(as.vector(train),frequency=period)
+
+  fuur <- fourier(train_msts, K = KK)
+  
+  #decomposition so that we can detrend
+  decomp_ts <- stl(train_ts, s.window = "periodic", robust = TRUE)
+  y_season = decomp_ts$time.series[,1]
+  y_detrended <- rowSums(decomp_ts$time.series[, c(1,3)])
+  y_trend <- ts(decomp_ts$time.series[,2])
+  
+  #fit a new model for trend. It can be most any modeling method
+  #should this just be a mean?
+  trend_fit <- auto.arima(y_trend, seasonal = FALSE)
+
+  #reduce training data by 1 window size
+  N_lag = N-window_size
+  
+  #the lagged seasonal values
+  lag_seas <- y_season[1:N_lag]
+  
+  #training matrix for random forest
+  #matrix is detrended series, fourier series, and lagged seasonal component
+  matrix_train <- data.frame(y = tail(y_detrended, N_lag),
+                             tail(fuur, N_lag),
+                             Lag = lag_seas)
+  
+  #train the random forest
+  tree <- randomForest( y ~ ., data = matrix_train,
+                        ntree = 500, mtry = mtry, nodesize = nodesize, importance = TRUE)
+
+  #calculate combined fitted and residuals
+  tree_fitted = tree$predicted
+  
+  y_detrended = ts(y_detrended)
+  tsp(y_detrended) <- tsp(train_ts)
+  
+  z = time(y_detrended)
+  tree_fitted = ts(tree$predicted,start=z[window_size+1],frequency=frequency(y_detrended))
+  trend_fitted = ts(trend_fit$fitted,start=z[window_size+1],frequency=frequency(y_detrended))
+
+  fitted = tree_fitted + mean(trend_fitted)
+  residuals = train_ts - fitted
+    
+  #build the object
+  ret_obj = list(
+    fitted = fitted,
+    residuals = residuals,
+    trend_fit = trend_fit,
+    rf = tree,
+    mtry = mtry,
+    KK = KK,
+    nodesize = nodesize,
+    y = train_ts,
+    periods = periods,
+    period = period,
+    window_size = window_size,
+    y_detrended = y_detrended,
+    y_trend = y_trend,
+    y_season = y_season,
+    fuur = fuur,
+    matrix_train = matrix_train
+  )
+
+  class(ret_obj) = c(class(ret_obj),"randomForest")
+  
+  return(ret_obj)
+}
+
+#xx = original time series
+#rr = residuals
+#ff = forecast
+pi_bootstrap = function(xx, rr, ff) {
+
+  npaths = 1000
+  h = length(ff$mean)
+
+  sim <- matrix(NA, nrow = npaths, ncol = h)
+  
+  #residuals should have a mean of 0
+  rr_samples = rr-mean(rr,na.rm = TRUE)
+  #rr_samples = rr
+  level=c(80,95)
+  nint = length(level)
+  
+  if( sum(is.na(rr_samples)) == length(rr_samples) ) {
+    browser()
+  }
+  
+  for (i in 1:npaths) {
+    sim[i,] <- sample(rr_samples, h, replace=TRUE)
+  }
+  
+  lower <- apply(sim, 2, quantile, 0.5 - level / 200, type = 8, na.rm=TRUE)
+  upper <- apply(sim, 2, quantile, 0.5 + level / 200, type = 8, na.rm=TRUE)
+  
+  lower = apply(lower, 1, function(col) { ff$mean+col})
+  upper = apply(upper, 1, function(col) { ff$mean+col})
+
+  #must convert back to a matrix if forecast horizon was 1
+  if(h==1) {
+    lower = t(as.matrix(lower))
+    upper = t(as.matrix(upper))
+  }
+
+  labels = paste(level, "%", sep = "")
+  colnames(lower) <- colnames(upper) <- labels
+
+  lower <- ts(lower)
+  upper <- ts(upper)
+  tsp(lower) <- tsp(upper) <- tsp(ff$mean)
+  
+  ff$lower = lower
+  ff$upper = upper
+  ff$level = level
+
+  return(ff)
+}
+
+#m - object returned from fit_rf
+#h - forecast horizon (must be <= hf parameter used in fit_rf)
+forecast_rf = function(m, h) {
+  
+  #the holdout size
+  x = m$y
+  window_size = m$window_size
+  periods = m$periods
+
+  N = length(x)
+  N_lag = N - window_size
+  
+  #forecast trend h steps ahead
+  trend_for = forecast(m$trend_fit, h=h)
+
+  #fourier series for h steps ahead
+  fuur_test <- as.data.frame(fourier(msts(x,seasonal.periods = periods), K = m$KK, h = h))
+  
+  #lagged seasonal component
+  test_lag <- m$y_season[(N_lag+1):(N_lag+h)]
+
+  matrix_test <- data.frame(fuur_test,
+                            Lag = test_lag)
+  
+  #combine detrended forecast and trend forecast
+  pred_tree <- predict(m$rf, matrix_test) + mean(trend_for$mean)
+  
+  #now build forecast object to return
+  out <- list(x=x,series=x,method="randomForest",fitted = m$fitted, residuals=m$residuals)
+
+  tspx <- tsp(x)
+  if(!is.null(tspx)) {
+    start.f <- tspx[2] + 1/frequency(out$x)
+  } else {
+    start.f <- length(out$x)+1
+  }
+  
+  out$median = out$mean <- ts(pred_tree,frequency=frequency(x),start=start.f)
+  
+  #bootstrap to get predictin intervals
+  out = pi_bootstrap(m$y, m$residuals, out)
+  
+  class(out) <- "forecast"
+  return(out)
+}
+
+#train - the time series data
+gridSearch <- function(train) {
+  
+  periods = attr(train,"msts")
+  if( is.null(periods) ) {
+    periods = frequency(train)
+  }
+  nPeriods = length(periods)
+  
+  window_size = min(as.numeric(periods))
+  
+  Y = train
+  n_train = length(Y)
+
+  #split data into 70%/30% train/test for grid search
+  #want an integral number of windows
+  
+  #after the grid parameters are found, fit again
+  #using those parameters
+  
+  #test size in periods
+  p_test = floor((n_train*.3)/window_size)
+  
+  #must have at least 1 window
+  p_test = max(p_test,1)
+  
+  #train size is remainder
+  t = n_train-(p_test*window_size)
+  
+  #grid search parameters
+  mtry_values = c(2,3,4,5)
+  nodesize_values = c(1,2,3)
+  KK = 12
+
+  #matrix of mape values for the grid of mtry and nodesize values
+  err.matrix <- matrix(0, nrow = length(mtry_values), ncol = length(nodesize_values))
+  row.names(err.matrix) <- mtry_values
+  colnames(err.matrix) <- nodesize_values
+  
+  for(i in seq_along(mtry_values)){
+    for(j in seq_along(nodesize_values)){
+      
+      #clear array
+      forecast.rf <- vector(length = p_test*window_size)
+      
+      #fit model on (t) samples, generate forecast in blocks of size window_size, evaluate MAPE
+      for(k in (seq(p_test)-1)) {
+        mtry = mtry_values[i]
+        nodesize = nodesize_values[j]
+        
+        xstart = (k*window_size+1)
+        xend = (k*window_size+t)
+        x = trim_window(train,xstart,xend)
+  
+        m = fit_rf(x, periods, hf=window_size, mtry, nodesize, KK )
+        f = forecast_rf(m, h=window_size)
+        forecast.rf[(k*window_size+1):(k*window_size+window_size)] = f$mean
+      }
+      
+      #use lowest rmse 
+      tt = train[-(1:t)]
+      sse = sum((tt-forecast.rf)**2)
+      err.matrix[i,j] = sqrt(sse/length(forecast.rf))
+    }
+  }
+  
+  parms = c(i = which(err.matrix == min(err.matrix), arr.ind = TRUE)[1],
+            j = which(err.matrix == min(err.matrix), arr.ind = TRUE)[2])
+  
+  i = parms[1]
+  j = parms[2]
+  
+  mtry = mtry_values[i]
+  nodesize = nodesize_values[j]
+
+  #refit with selected parameters
+  m = fit_rf(train, periods, hf, mtry, nodesize, KK )
+
+  return(m)
+}
+
+train=ts(da2$w,frequency = freq)
+
+#gridSearch takes LOOONNNNNGGGGGG time (hours)
+#m = gridSearch(train)
+
+#parameters found by gridSearch (there wasn't much difference)
+periods=freq
+m = fit_rf(train, periods, hf=0, mtry=2, nodesize=3, KK=2 )
+m$x = train
+
+#show variable importance? Indicates KK > 2 may not help much
+varImpPlot(m$rf)
+
+```
+
+##Residuals
+```{r,echo=FALSE, include=TRUE, results='asis'}
+cat("\n\n")
+plot_fit(m,ds)
+cat("\n\n")
+```
+
+
+# Model 7
+Fit an ARIMA model of the seasonally differenced W with the seasonal component represented as a Fourier Series. I saw that Rodney has been using a seasonal period of 4096. I thought I would try doing another arima_ft model with 2 periods (3511 and 4096).
+
+```{r,echo=FALSE, include=TRUE}
+y = msts(dw,seasonal.periods = c(3511,4096))
+m = arima_ft(y,KK=2)
+summary(m)
+```
+##Residuals
+```{r,echo=FALSE, include=TRUE, results='asis'}
+plot_fit(m,ds)
+cat("\n\n")
+plot_fit(m,ds,last=100)
+cat("\n\n")
+plot_dist(residuals(m))
+cat("\n\n")
+acf(residuals(m))
+cat("\n\n")
+tsdiag(m)
+cat("\n\n")
+```
+
+#Correlation of W vs. G
+```{r, echo=FALSE,include=FALSE}
+lags=20
+source("ccm.r")
+source("mq.r")
+library("MTS")
+```
+
+The correlation of W vs. G, using the seasonal difference of both. This is the same as matrix 0 of the CCM.
+```{r}
+dg = diff(da2$g,freq)
+#cor.test is the same as ccm result at lag=0
+cor.test(dw,dg)
+```
+
+Cross correlation matrices and hypothesis tests for the first `r lags`. W and G are highly correlated at each lag.
+
+```{r}
+z = data.frame(dw,dg)
+#m1 = ccm(z,lags)
+```
+
+Significance plot of CCM at each lag.
+```{r}
+m1 = MTS::ccm(z,lags)
+```
+
