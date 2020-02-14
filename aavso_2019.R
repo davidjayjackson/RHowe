@@ -18,12 +18,12 @@ library(plotly)
 rm(list=ls())
 ##
 ## Set Working Directory
-setwd('c:/Users/Howe/Desktop/')
+# setwd('c:/Users/Howe/Desktop/')
 
 ## Download latest data from aavso
-aavso <-fread("aavso_2019.csv")
-#aavso <-fread("https://www.aavso.org/sites/default/files/solar/NOAAfiles/NOAAdaily.csv")
-colnames(aavso) <- c("JD","Year","Month","Day","n_g", "n_s","Wn", "s_g","s_s" ,"Ws", "Wolf" )
+aavso <-fread("./aavso_2019.csv")
+# aavso <-fread("https://www.aavso.org/sites/default/files/solar/NOAAfiles/NOAAdaily.csv")
+# colnames(aavso) <- c("JD","Year","Month","Day","n_g", "n_s","Wn", "s_g","s_s" ,"Ws", "Wolf" )
 
 aavso$Ymd <- as.Date(paste(aavso$Year, aavso$Month, aavso$Day, sep = "-"))
 aavso<-aavso[Ymd>="2012-01-01",.(Ymd,Wolf),]
@@ -37,7 +37,7 @@ summary(df)
 m <- prophet(seasonality.mode="multiplicative")
 m <- add_seasonality(m, name="cycle_11year", period=365.25 * 11,fourier.order=5)
 m <- fit.prophet(m, df)
-future <- make_future_dataframe(m,periods=2000,freq="day")
+future <- make_future_dataframe(m,periods=4000,freq="day")
 forecast <- predict(m, future)
 plot(m,forecast) +ggtitle("AAVSO Sunspot Predictions:2012 - 2025")
 ##

@@ -14,7 +14,7 @@ library(rgl)
 
 
 # put the data sunspot_jan-nov_arima.txt in R (user), 
-setwd("~howe/R/bfly_py/")
+setwd("./")
 WD <- getwd()
 
 ###   Specify the name and address of the data file,   ####
@@ -39,14 +39,14 @@ lines(smooth.spline(CR_S, S, df = 22), lty = 2, col = "red")
 legend(7,-90,c(paste("default [C.V.] => df =",round(ns.spl$df,1)),
                "s( * , df = 22)"), col = c("blue","red"), lty = 1:2,
        bg = 'bisque')
-x11()
+## x11()
 detach()
 
 
 # # ## Residual (Tukey Anscombe) plot:
 # plot(residuals(ns.spl) ~ fitted(ns.spl))
 # abline(h = 0, col = "gray")
-# x11()
+# ## x11()
 
 # #require(graphics)
 
@@ -61,14 +61,14 @@ detach()
 # legend(1,-100,c(paste("default [C.V.] => df =",round(ns.spl$df,1)),
                # "s( * , df = 27)"), col = c("blue","red"), lty = 1:2,
        # bg = 'bisque')
-# x11()
+# ## x11()
 # detach()
 
 
 # ## Residual (Tukey Anscombe) plot:
 # plot(residuals(ns.spl) ~ fitted(ns.spl))
 # abline(h = 0, col = "gray")
-# x11()
+# ## x11()
 
 
 
@@ -87,20 +87,20 @@ colMeans(tmp)
 apply(tmp,2,min)
 apply(tmp,2,max)
 plot.ts(tmp[,2],tmp[,4], main="S by N",plot.type="single", col=c(1,2), xlab="Umbra area N black", ylab="Umbra area S red")
-x11()
+## x11()
 
 plot.ts(tmp, main=" RGO Averages ", xlab="Days", ylab="RGO Averages", ylim(0,5))
-x11()
+## x11()
 plot.ts(tmp[,2],tmp[,4], plot.type="single", col=c(2,3), main=" RGO Umbra Areas", xlab="N red, S_green", ylab="RGO")
-# x11()
+# ## x11()
 # acf(tmp[,1], main="CR_S")
-# x11()
+# ## x11()
 # acf(tmp[,2], main="S")
-# x11()
+# ## x11()
 # acf(tmp[,3], main="CR_N")
-# x11()
+# ## x11()
 # acf(tmp[,4], main="N")
-# x11()
+# ## x11()
 
 ts.acf  <- acf(tmp, plot=F)
 ts.pacf <- acf(tmp, type="partial", plot=F)
@@ -115,9 +115,9 @@ save(tmp, file=outfile, ascii=FALSE)
 # # acf(tmp)
 # acf(tmp, type="partial")
 # pairs(tmp,panel=panel.smooth)
-# x11()
+# ## x11()
 # pairs(tmp[,1:4],panel=panel.smooth)
-# x11()
+# ## x11()
 
 ###   Autocorrelation analysis - first diff  ###############
 tmp <- diff(sol_kTS)
@@ -134,56 +134,56 @@ apply(tmp,2,max)
 # shapiro.test(tmp[,4])
 
 plot(tmp[,2],type="l")
-x11()
+## x11()
 tmp.hist <- hist(tmp[,2],prob=T,col="red",main="CR_S Sunspot Distribution",sub="Fitted n(min, max)",xlab="First Difference")
 lines(seq(min(tmp[,2]),max(tmp[,2]),100), dnorm(seq(min(tmp[,2]),max(tmp[,2]),100), mean=mean(tmp[,2]), sd=sd(tmp[,2])), lwd=2)
-x11()
+## x11()
 plot(tmp[,4],type="l")
-x11()
+## ## x11()
 tmp.hist <- hist(tmp[,4],prob=T,col="red",main="CR_N Sunspot Distribution",sub="Fitted n(min, max)",xlab="First Difference")
 lines(seq(min(tmp[,4]),max(tmp[,4]),100), dnorm(seq(min(tmp[,4]),max(tmp[,4]),100), mean=mean(tmp[,4]), sd=sd(tmp[,4])), lwd=2)
-x11()
+## x11()
 
 
 ###   Autocorrelations   ###################################
 plot.ts(tmp, main="S by N",plot.type="single", col=c(1,2), xlab="S", ylab="N")
-x11()
+## x11()
 plot.ts(tmp[,2], plot.type="single", col=c(1,2), main="CR_S", xlab="S", ylab="CR_S")
-x11()
+## x11()
 plot.ts(tmp[,4], plot.type="single", col=c(1,3), main="CR_N", xlab="N", ylab="CR_N")
-x11()
+## x11()
 
 # acf(tmp)
 # acf(tmp, type="partial")
 # acf(tmp[,2], main="CR_S Lag 1 ACF")
-# x11()
+# ## x11()
 # acf(tmp[,4], main="CR_N  Lag 1 ACF")
-# x11()
+# ## x11()
 
 # acf(tmp[,2], type="partial", main="CR_S  Lag 1 PACF")
-# x11()
+# ## x11()
 # acf(tmp[,4], type="partial", main="CR_N  Lag 1 PACF")
-# x11()
+# ## x11()
 
 ###   arima analysis (d=1)  ##############################
 
 (ch0 <- arima(tmp[,2],order=c(0,0,1)))
 cpgram(ch0$resid, main="CR_S  ARIMA(0,1,1) Residuals")
-x11()
+## x11()
 tsdiag(ch0)
 (ch1 <- arima(tmp[,4],order=c(0,0,1)))
 cpgram(ch1$resid, main="CR_N  ARIMA(0,1,1) Residuals")
-x11()
+## x11()
 tsdiag(ch1)
-x11()
+## x11()
 
 
 ###   Cross-correlation analysis - first diff  ###########
 
 pairs(tmp[,1:4],panel=panel.smooth, main="Pairwise Scatterplots with Loess Smoothing")
-x11()
+## x11()
 #pairs(tmp[,1:4],panel=panel.smooth, main="Pairwise Scatterplots with Loess Smoothing")
-# #x11()
+# ### x11()
 # acf(tmp)
 # acf(tmp, type="partial")
 
@@ -235,7 +235,7 @@ useSubscene3d(parent)
 # legend("topleft", legend=c("SVD","SVD lines"), lwd=1, lty=c("solid","dotted","dotdash","dashed"), pch=c(3,NA,3,1), col=c("cyan","black","blue","red"))
 # #lines(xt,xs,col="blue",lwd=2,lty="dotted")
 # grid(nx=NA, ny=NULL, col="gray")
-# x11()
+# ## x11()
 
 # ########################## SVD inverse plots ###########################
 
@@ -257,7 +257,7 @@ useSubscene3d(parent)
 # points(us,vs,pch=1,lwd=3,col="blue",cex=2)
 # points(xt,xs,pch=4,lwd=4,col="green",cex=1.5)
 # grid(col="black")
-# x11()
+# ## x11()
 
 
 # Error analysis
