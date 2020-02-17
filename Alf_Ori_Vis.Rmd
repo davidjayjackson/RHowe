@@ -1,8 +1,8 @@
 ---
-title: "Alf (aka Betelgeuse) Ori Preditions"
-subtitle: "Jan. 1964 - Mar. 2020"
-author: "Betelgeuse,Betelgeuse,Betelgeuse"
-date: "2/10/2020"
+title: "Alf (aka Betelgeuse) Ori Preditions(v1,2)"
+subtitle: "Jan. 1964 - Mar.16 2020"
+author: "Rodney Howe & DAvid  Jackson"
+date: "2/17/2020"
 output: pdf_document
 ---
 
@@ -15,6 +15,18 @@ library(plotly)
 library(prophet)
 library(forecast)
 ```
+
+#  The American Association of Variable Star Observers (AAVSO) 
+
+The AAVSO is an international non-profit organization of variable star observers whose mission is to enable anyone, anywhere, to participate in scientific discovery through variable star astronomy. We accomplish our mission by carrying out the following activities:
+
+* observation and analysis of variable stars
+* ollecting and archiving observations for worldwide access
+* forging strong collaborations between amateur and professional astronomers
+* promoting scientific research, education, and public outreach using variable star data.
+
+
+## Analysis Visual Observations of Betelgeuse
 ```{r Import Radio Flux Date, echo=FALSE}
 rm(list=ls())
 AOri <-fread("../db/visALL.dat")
@@ -22,23 +34,37 @@ AOri <- AOri %>% select(year,month,day,Vis)
 AOri$Cts <- ifelse(AOri$Vis==0.00,0,1)
 # Ori$Loess <-lowess(AOri$Vis,f=0.1)
 AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
-table(AOri$Cts)
-summary(AOri)
 ```
-
-# Calucate Daily Mean Visual Magnatude
 ```{r Calculate Daily Means}
  AOri1 <- AOri %>% select(Ymd,year,Vis) %>%
-   group_by(Ymd) %>% summarise(Vis = mean(Vis),
+   group_by(Ymd) %>% summarise(Mean = mean(Vis),
                                Sum = sum(Vis),
                                Obs = n())
                                         
 
- summary(AOri1)
 ```
 
-#.... Seems to be a Spike in the Number of Observations
-```{r}
+## First some basic Summary Stats
+```{r echo=FALSE}
+summary(AOri1)
+```
+```{r echo=FALSE}
+thirty_days <- AOri %>% filter(Ymd >= "2020-01-18")
+ ggplot(thirty_days,aes(Vis)) + geom_histogram() + labs(title="Histogram of Observed Magnatudes",subtitle="Jan. 18,2020 - Mar. 16,2020")
+ 
+ ggplot(thirty_days) + geom_smooth(aes(x=Ymd,y=Vis)) +  
+   scale_y_reverse() + geom_point(aes(x=Ymd,y=Vis)) + labs(title="Visual Obersvations for Jan 1,2020 - Mar. 16, 2020")
+   
+```
+```{r echo=FALSE}
+thirty_days$Ymd <- as.factor(thirty_days$Ymd)
+ggplot(thirty_days) + geom_boxplot(aes(x=Ymd,y=Vis)) + coord_flip() +
+  labs(title="Daily Visual Magnatudes", x="Date of Observation",y="Visual Magnatude",subtitle="Jan. 8 ,2020 -Feb. 16,2020 ") 
+  # theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+##.... Seems to be a Spike in the Number of Observations
+```{r echo=FALSE}
 AOri1 %>% ggplot() + geom_col(aes(x=Ymd,y=Obs)) + 
       geom_smooth(aes(x=Ymd,y=Obs)) +
       labs(title="Betelgeuse: Number of Observation",
@@ -47,48 +73,54 @@ AOri1 %>% ggplot() + geom_col(aes(x=Ymd,y=Obs)) +
 ```
 
 
-# Plot of (mean) Daily with Loess 
-```{r}
-Fit <- as.data.frame(lowess(AOri1$Vis,f=0.1))
+## Plot of (mean) Daily with Loess 
+```{r echo=FALSE}
+Fit <- as.data.frame(lowess(AOri1$Mean,f=0.1))
 AOri2 <-cbind(AOri1,Fit$y)
-colnames(AOri2) <-c("Ymd","Visual","Sum","Obs","Loess")
+colnames(AOri2) <-c("Ymd","Mean","Sum","Obs","Loess")
 ```
-```{r}
+```{r echo=FALSE}
 
-ggplot(data=AOri2,aes(x=Ymd,y=Visual,col="Visual")) +
+ggplot(data=AOri2,aes(x=Ymd,y=Mean,col="Visual")) +
   geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
   ggtitle("Alf Ori: Jan. 1, 1964 - Feb. 16,2020") +
   scale_y_reverse()
 ```
-```{r}
+```{r echo=FALSE}
 AOri2 %>% filter(Ymd >="2007-01-01") %>%
-ggplot(aes(x=Ymd,y=Visual,col="Visual")) +
+ggplot(aes(x=Ymd,y=Mean,col="Visual")) +
   geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
   ggtitle("Alf Ori: Jan. 1, 2009 - Feb. 16,2020") +
   scale_y_reverse()
 ```
 
-# Calculate and Plot 180 Day Moving Avreage
-```{r}
- AOri1$MA <- ma(AOri1$Vis,order=180)
+## Calculate and Plot 60 Day Moving Avreage
+```{r echo=FALSE}
+ AOri1$MA <- ma(AOri1$Mean,order=60)
  ggplot(data=AOri1,aes(x=Ymd,y=MA,col="Vis")) +
-  geom_line()  + labs(title="Alf Ori (aka Betelgeuse) : Jan 1,1964 - Feb. 16,2020",subtitle="180 DAy Moving Average",y="Visual Magnitude",
-                      ylab="Visual Magnitute") +geom_hline(yintercept = 0.68) +
+  geom_line()  + 
+   labs(title="Alf Ori (aka Betelgeuse) : Jan 1,1964 - Feb. 16,2020",subtitle="60 DAy Moving Average",y="Visual Magnitude",
+                      ylab="Visual Magnitute") + 
+   geom_hline(yintercept = 0.68) +
     scale_y_reverse()
 ```
 
-# Use Facebook Prophet to Predict Magnitutde
-```{r Predict Daily Alf Ori}
-df <- AOri1 %>% select(Ymd,Vis)
+## Use Facebook Prophet to Predict Magnitutde
+```{r Predict Daily Alf Ori, echo=FALSE}
+df <- AOri1 %>% select(Ymd,Mean)
 colnames(df) <- c("ds","y")
 m <- prophet(seasonality.mode="multiplicative")
 m <- add_seasonality(m, name="half_year_cycle", period=180.25 * 1,fourier.order=5)
 m <- fit.prophet(m, df)
 future <- make_future_dataframe(m,periods=500,freq="day",include_history = TRUE)
 forecast <- predict(m, future)
-plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +ylab("Predicted Days w/ Vis") +   xlab("Years" ) +  scale_y_reverse()
+
 ```
-```{r}
+```{r echo=FALSE}
+plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +
+ ylab("Predicted Days w/ Vis") +   xlab("Years" ) +  scale_y_reverse()
+```
+```{r echo=FALSE}
 fcast <- forecast %>% select(ds,yhat,yhat_lower,yhat_upper) %>%
   filter(ds >="2019-03-06")
 fcast$ds <- as.Date(fcast$ds)
@@ -99,7 +131,5 @@ ggplot(fcast) + geom_line(aes(x=ds,y=yhat,col="Prediction")) +
 #  geom_line(data=fcast,aes(x=ds,y=yhat_lower)) +
   scale_y_reverse() +
   labs(title = "Alf (aka Betelgeuse) Ori: Actual vs Predicted ", 
-       subtitle = "(Actual = 180 Day Moving Average)",y="Visual Magnitude",x="Year")
+       subtitle = "(Actual = 60 Day Moving Average)",y="Visual Magnitude",x="Year")
 ```
-
-
