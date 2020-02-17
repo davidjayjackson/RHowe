@@ -1,5 +1,5 @@
 ---
-title: "Alf Ori Preditions"
+title: "Alf (aka Betelgeuse) Ori Preditions"
 subtitle: "Jan. 1964 - Mar. 2020"
 author: "Betelgeuse,Betelgeuse,Betelgeuse"
 date: "2/10/2020"
@@ -19,7 +19,10 @@ library(forecast)
 rm(list=ls())
 AOri <-fread("../db/visALL.dat")
 AOri <- AOri %>% select(year,month,day,Vis)
+AOri$Cts <- ifelse(AOri$Vis==0.00,0,1)
+# Ori$Loess <-lowess(AOri$Vis,f=0.1)
 AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
+table(AOri$Cts)
 summary(AOri)
 ```
 
@@ -27,8 +30,9 @@ summary(AOri)
 ```{r Calculate Daily Means}
  AOri1 <- AOri %>% select(Ymd,year,Vis) %>%
    group_by(Ymd) %>% summarise(Vis = mean(Vis),
+                               Sum = sum(Vis),
                                Obs = n())
-                                          
+                                        
 
  summary(AOri1)
 ```
@@ -38,36 +42,39 @@ summary(AOri)
 AOri1 %>% ggplot() + geom_col(aes(x=Ymd,y=Obs)) + 
       geom_smooth(aes(x=Ymd,y=Obs)) +
       labs(title="Betelgeuse: Number of Observation",
-           subtitle="Jan. 1,1964 - Feb. 2, 2020",
+           subtitle="Jan. 1,1964 - Feb. 16, 2020",
            y="Number of Observation")
 ```
 
 
 # Plot of (mean) Daily with Loess 
 ```{r}
-AOri3 <-AOri2 %>% filter(Ymd>="1964-01-01")
-AOri3$Vote <- ifelse(AOri3$Vis >=0.5,"Yes","No")
-
-Fit <- as.data.frame(lowess(AOri3$Vis,f=0.1))
-AOri3 <-cbind(AOri1,Fit$y)
-
-colnames(AOri3) <-c("Ymd","Vis","Vote","Loess")
-ggplot(data=AOri3,aes(x=Ymd,y=Vis,col="Vis")) +
-  geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
-  ggtitle("Alf Ori: Jan. 1, 1964 - Mar. 16,2020") 
+Fit <- as.data.frame(lowess(AOri1$Vis,f=0.1))
+AOri2 <-cbind(AOri1,Fit$y)
+colnames(AOri2) <-c("Ymd","Visual","Sum","Obs","Loess")
 ```
 ```{r}
-AOri1 %>% filter(Ymd >="2007-01-01") %>%
-ggplot(aes(x=Ymd,y=Vis,col="Vis")) +
+
+ggplot(data=AOri2,aes(x=Ymd,y=Visual,col="Visual")) +
   geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
-  ggtitle("Alf Ori: Jan. 1, 2009 - Mar. 16,2020") 
+  ggtitle("Alf Ori: Jan. 1, 1964 - Feb. 16,2020") +
+  scale_y_reverse()
+```
+```{r}
+AOri2 %>% filter(Ymd >="2007-01-01") %>%
+ggplot(aes(x=Ymd,y=Visual,col="Visual")) +
+  geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
+  ggtitle("Alf Ori: Jan. 1, 2009 - Feb. 16,2020") +
+  scale_y_reverse()
 ```
 
 # Calculate and Plot 180 Day Moving Avreage
 ```{r}
  AOri1$MA <- ma(AOri1$Vis,order=180)
  ggplot(data=AOri1,aes(x=Ymd,y=MA,col="Vis")) +
-  geom_line()  + labs(title="Alf Ori: Jan 1,1964 - Mar. 16,2020",subtitle="180 Day Moving Average",y="Visual Magnitude") +geom_hline(yintercept = 0.67)
+  geom_line()  + labs(title="Alf Ori (aka Betelgeuse) : Jan 1,1964 - Feb. 16,2020",subtitle="180 DAy Moving Average",y="Visual Magnitude",
+                      ylab="Visual Magnitute") +geom_hline(yintercept = 0.68) +
+    scale_y_reverse()
 ```
 
 # Use Facebook Prophet to Predict Magnitutde
@@ -77,17 +84,22 @@ colnames(df) <- c("ds","y")
 m <- prophet(seasonality.mode="multiplicative")
 m <- add_seasonality(m, name="half_year_cycle", period=180.25 * 1,fourier.order=5)
 m <- fit.prophet(m, df)
-future <- make_future_dataframe(m,periods=180,freq="day",include_history = TRUE)
+future <- make_future_dataframe(m,periods=500,freq="day",include_history = TRUE)
 forecast <- predict(m, future)
-plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +ylab("Predicted Days w/ Vis") +
-  xlab("Years" ) 
+plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +ylab("Predicted Days w/ Vis") +   xlab("Years" ) +  scale_y_reverse()
 ```
 ```{r}
 fcast <- forecast %>% select(ds,yhat,yhat_lower,yhat_upper) %>%
-  filter(ds >="2019-01-01")
+  filter(ds >="2019-03-06")
 fcast$ds <- as.Date(fcast$ds)
-Actual <- AOri1 %>%  filter(Ymd >="2018-01-01" & Ymd <="2020-03-01")
-ggplot(fcast) + geom_line(aes(x=ds,y=yhat,col="yhat")) +
-  geom_line(data=Actual,aes(x=Ymd,y=MA,col="Vis"))
+Actual <- AOri1 %>%  filter(Ymd >="2007-01-01" & Ymd <="2019-10-01")
+ggplot(fcast) + geom_line(aes(x=ds,y=yhat,col="Prediction")) +
+  geom_line(data=Actual,aes(x=Ymd,y=MA,col="Moving Average")) + 
+#  geom_line(data=fcast,aes(x=ds,y=yhat_upper)) +
+#  geom_line(data=fcast,aes(x=ds,y=yhat_lower)) +
+  scale_y_reverse() +
+  labs(title = "Alf (aka Betelgeuse) Ori: Actual vs Predicted ", 
+       subtitle = "(Actual = 180 Day Moving Average)",y="Visual Magnitude",x="Year")
 ```
+
 
