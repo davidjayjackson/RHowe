@@ -1,0 +1,66 @@
+---
+title: "Alf Ori Preditions"
+subtitle: "Jan. 1964 - Mar. 2020"
+author: "Betelgeuse,Betelgeuse,Betelgeuse"
+date: "2/10/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(data.table)
+library(lubridate)
+library(plotly)
+library(prophet)
+library(forecast)
+```
+```{r Import Radio Flux Date, echo=FALSE}
+rm(list=ls())
+AOri <-fread("../db/visALL.dat")
+AOri <- AOri %>%select(year,month,day,Vis)
+```
+
+# Calucate Daily Mean Magnatude
+```{r Calculate Daily Means}
+AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
+ AOri <- AOri %>% select(Ymd,year,Vis) %>%
+   group_by(Ymd) %>% summarise(Vis = mean(Vis,Obs=n()))
+summary(AOri)
+```
+```{r}
+AOri1 <-AOri %>% filter(Ymd>="1964-01-01")
+AOri1$Vote <- ifelse(AOri1$Vis >=0.5,"Yes","No")
+Fit <- as.data.frame(lowess(AOri1$Vis,f=0.1))
+AOri1 <-cbind(AOri1,Fit$y)
+colnames(AOri1) <-c("Ymd","Vis","Vote","Loess")
+ggplot(data=AOri1,aes(x=Ymd,y=Vis,col="Vis")) +
+  geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
+  ggtitle("Alf Ori: Jan. 1, 1964 - Mar. 16,2020") 
+```
+```{r}
+AOri1 %>% filter(Ymd >="2007-01-01") %>%
+ggplot(aes(x=Ymd,y=Vis,col="Vis")) +
+  geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
+  ggtitle("Alf Ori: Jan. 1, 2009 - Mar. 16,2020") 
+```
+
+
+```{r}
+ AOri1$MA <- ma(AOri1$Vis,order=180)
+ ggplot(data=AOri1,aes(x=Ymd,y=MA,col="Vis")) +
+  geom_line()  + labs(title="Alf Ori: Jan 1,1964 - Mar. 16,2020",subtitle="180 Day Moving Average",y="Visual Magnitude") +geom_hline(yintercept = 0.67)
+```
+
+
+```{r Predict Daily Alf Ori}
+df <- AOri1 %>% select(Ymd,Vis)
+colnames(df) <- c("ds","y")
+m <- prophet(seasonality.mode="multiplicative")
+m <- add_seasonality(m, name="half_year_cycle", period=180.25 * 1,fourier.order=5)
+m <- fit.prophet(m, df)
+future <- make_future_dataframe(m,periods=80,freq="day",include_history = TRUE)
+forecast <- predict(m, future)
+plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +ylab("Predicted Days w/ Vis") +
+  xlab("Years" ) 
+```
