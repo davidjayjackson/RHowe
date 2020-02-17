@@ -18,23 +18,41 @@ library(forecast)
 ```{r Import Radio Flux Date, echo=FALSE}
 rm(list=ls())
 AOri <-fread("../db/visALL.dat")
-AOri <- AOri %>%select(year,month,day,Vis)
-```
-
-# Calucate Daily Mean Magnatude
-```{r Calculate Daily Means}
+AOri <- AOri %>% select(year,month,day,Vis)
 AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
- AOri <- AOri %>% select(Ymd,year,Vis) %>%
-   group_by(Ymd) %>% summarise(Vis = mean(Vis,Obs=n()))
 summary(AOri)
 ```
+
+# Calucate Daily Mean Visual Magnatude
+```{r Calculate Daily Means}
+ AOri1 <- AOri %>% select(Ymd,year,Vis) %>%
+   group_by(Ymd) %>% summarise(Vis = mean(Vis),
+                               Obs = n())
+                                          
+
+ summary(AOri1)
+```
+
+#.... Seems to be a Spike in the Number of Observations
 ```{r}
-AOri1 <-AOri %>% filter(Ymd>="1964-01-01")
-AOri1$Vote <- ifelse(AOri1$Vis >=0.5,"Yes","No")
-Fit <- as.data.frame(lowess(AOri1$Vis,f=0.1))
-AOri1 <-cbind(AOri1,Fit$y)
-colnames(AOri1) <-c("Ymd","Vis","Vote","Loess")
-ggplot(data=AOri1,aes(x=Ymd,y=Vis,col="Vis")) +
+AOri1 %>% ggplot() + geom_col(aes(x=Ymd,y=Obs)) + 
+      geom_smooth(aes(x=Ymd,y=Obs)) +
+      labs(title="Betelgeuse: Number of Observation",
+           subtitle="Jan. 1,1964 - Feb. 2, 2020",
+           y="Number of Observation")
+```
+
+
+# Plot of (mean) Daily with Loess 
+```{r}
+AOri3 <-AOri2 %>% filter(Ymd>="1964-01-01")
+AOri3$Vote <- ifelse(AOri3$Vis >=0.5,"Yes","No")
+
+Fit <- as.data.frame(lowess(AOri3$Vis,f=0.1))
+AOri3 <-cbind(AOri1,Fit$y)
+
+colnames(AOri3) <-c("Ymd","Vis","Vote","Loess")
+ggplot(data=AOri3,aes(x=Ymd,y=Vis,col="Vis")) +
   geom_line() +geom_line(aes(x=Ymd,y=Loess,col="Loess")) + 
   ggtitle("Alf Ori: Jan. 1, 1964 - Mar. 16,2020") 
 ```
@@ -45,22 +63,31 @@ ggplot(aes(x=Ymd,y=Vis,col="Vis")) +
   ggtitle("Alf Ori: Jan. 1, 2009 - Mar. 16,2020") 
 ```
 
-
+# Calculate and Plot 180 Day Moving Avreage
 ```{r}
  AOri1$MA <- ma(AOri1$Vis,order=180)
  ggplot(data=AOri1,aes(x=Ymd,y=MA,col="Vis")) +
   geom_line()  + labs(title="Alf Ori: Jan 1,1964 - Mar. 16,2020",subtitle="180 Day Moving Average",y="Visual Magnitude") +geom_hline(yintercept = 0.67)
 ```
 
-
+# Use Facebook Prophet to Predict Magnitutde
 ```{r Predict Daily Alf Ori}
 df <- AOri1 %>% select(Ymd,Vis)
 colnames(df) <- c("ds","y")
 m <- prophet(seasonality.mode="multiplicative")
 m <- add_seasonality(m, name="half_year_cycle", period=180.25 * 1,fourier.order=5)
 m <- fit.prophet(m, df)
-future <- make_future_dataframe(m,periods=80,freq="day",include_history = TRUE)
+future <- make_future_dataframe(m,periods=180,freq="day",include_history = TRUE)
 forecast <- predict(m, future)
 plot(m, forecast) +ggtitle("Vis Daily: Jan. 1964 - Mar. 2020") +ylab("Predicted Days w/ Vis") +
   xlab("Years" ) 
 ```
+```{r}
+fcast <- forecast %>% select(ds,yhat,yhat_lower,yhat_upper) %>%
+  filter(ds >="2019-01-01")
+fcast$ds <- as.Date(fcast$ds)
+Actual <- AOri1 %>%  filter(Ymd >="2018-01-01" & Ymd <="2020-03-01")
+ggplot(fcast) + geom_line(aes(x=ds,y=yhat,col="yhat")) +
+  geom_line(data=Actual,aes(x=Ymd,y=MA,col="Vis"))
+```
+
