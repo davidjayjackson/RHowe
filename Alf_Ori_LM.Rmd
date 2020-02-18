@@ -1,0 +1,85 @@
+---
+title: "Alf_Ori Predictions"
+author: "David J Jackson"
+date: "2/8/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#remotes::install_github("RamiKrispin/forecastLM")
+library(tidyverse)
+library(forecastLM)
+library(tidyverse)
+library(data.table)
+library(lubridate)
+library(plotly)
+library(prophet)
+library(forecast)
+```
+
+```{r Import Alf Ori Date, echo=FALSE}
+rm(list=ls())
+AOri <-fread("/Users/Howe/Desktop/visALL.dat")
+AOri <- AOri %>% select(year,month,day,Vis)
+AOri$Cts <- ifelse(AOri$Vis==0.00,0,1)
+# Ori$Loess <-lowess(AOri$Vis,f=0.1)
+AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
+```
+```{r Calculate Daily Means}
+ AOri1 <- AOri %>% select(Ymd,year,Vis) %>%
+   group_by(Ymd) %>% summarise(Mean = mean(Vis),
+                               Sum = sum(Vis),
+                               Obs = n())
+                                        
+
+```
+
+## First some basic Summary Stats
+```{r echo=FALSE}
+summary(AOri1)
+```
+# Use forecastLM library to predict Alf Ori magnitudes .
+Maintainer: Rami Krispin <rami.krispin@gmail.com>
+Description: Provides a forecasting framework based on linear regression model.
+
+```{r forecastLM}
+colnames(AOri1) <- c("Ymd","Mean","Sum","Obs")
+Mag <- tsibble::as_tsibble(AOri1)
+md <- trainLM(input = Mag,
+              y = "Sum",
+              trend = list(linear = TRUE),
+#              seasonal = "yYmd",
+              lags = c(1, 12))
+
+# Forecasting the future observations
+fc <- forecastLM(model = md,
+                 h = 1200)
+```
+# Plotting the forecast output
+```{r}
+plot_fc(fc)
+```
+```{r}
+#fcc <- fc$forecast$date
+fcc <- fc$forecast$Ymd
+fcc <- data.table::as.data.table(fcc)
+fcc$yhat <- fc$forecast$yhat
+colnames(fcc) <- c("Ymd","Yhat")
+fcc %>%filter(Ymd>="1964-01-01") %>%
+ggplot() + geom_line(aes(x=Ymd,y=Yhat)) +
+  ggtitle(" AOri Mag: 1964-2026")
+```
+
+# Plotting the Fitted Values vs. Actuals
+```{r}
+plot_fit(md)
+```
+
+# Plotting the residuals
+```{r}
+plot_res(md)
+```
+
