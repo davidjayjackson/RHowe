@@ -1,6 +1,6 @@
 ---
-title: "Alf_Ori Predictions"
-author: "David J Jackson"
+title: "Alf_Ori(Betelgeuse) Predictions-v1.0"
+author: "David J Jackson & Rodney Howe"
 date: "2/8/2020"
 output:
   html_document: default
@@ -15,34 +15,30 @@ library(forecastLM)
 library(data.table)
 library(lubridate)
 library(forecast)
+library(tsibble)
+library(epitools)
+library(plotly)
 ```
 
 ```{r Import Alf Ori Date, echo=FALSE}
 rm(list=ls())
-AOri <-fread("../db/visALL.dat")
+AOri <-fread("../db/Alf_Ori-corrected.csv")
 AOri <- AOri %>% select(year,month,day,Vis)
 AOri$Cts <- ifelse(AOri$Vis==0.00,0,1)
 # Ori$Loess <-lowess(AOri$Vis,f=0.1)
 AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-")) 
+summary(AOri)
 ```
-```{r Calculate Daily Means}
+```{r Calculate Daily Means, echo=FALSE}
  AOri1 <- AOri %>% select(Ymd,Vis) %>%
    group_by(Ymd) %>% summarise(Mean = mean(Vis),
                                Sum = sum(Vis),
-                               Obs = n())
+                             Obs = n())
                                         
-
 ```
 
-## First some basic Summary Stats
-```{r echo=FALSE}
-summary(AOri1)
-```
-# Use forecastLM library to predict Alf Ori magnitudes .
-Maintainer: Rami Krispin <rami.krispin@gmail.com>
-Description: Provides a forecasting framework based on linear regression model.
 
-```{r forecastLM}
+```{r, echo=FALSE, echo=FALSE}
 colnames(AOri1) <- c("Ymd","Mean","Sum","Obs")
 Mag <- tsibble::as_tsibble(AOri1,index="Ymd")
 md <- trainLM(input = Mag,
@@ -52,26 +48,28 @@ md <- trainLM(input = Mag,
               lags = c(1, 12))
 ```
 
-# Forecasting the future observations
-```{r}
+#  Forecasting the future observations
+```{r, echo=FALSE}
 fc <- forecastLM(model = md,
                  h = 1000)
 ```
+
 # Plotting the forecast output
 ```{r}
 plot_fc(fc)
 ```
 
+
 # Plotting the Fitted Values vs. Actuals
-```{r}
+```{r,echo=FALSE}
 plot_fit(md)
 ```
 
 # Plotting the residuals
-```{r}
+```{r,echo=FALSE}
 plot_res(md)
 ```
-```{r}
+```{r, echo=FALSE}
 
 AOri$MA <- ma(AOri$Vis,order=60)
 A <- AOri %>% filter(Ymd >="2014-01-01")
@@ -80,13 +78,34 @@ fcc <- fc$forecast$Ymd
 fcc <- data.table::as.data.table(fcc)
 fcc$yhat <- fc$forecast$yhat
 colnames(fcc) <- c("Ymd","Yhat")
-fcc %>%filter(Ymd>="2020-02-01") %>%
-ggplot() + geom_line(aes(x=Ymd,y=Yhat,col="Predicted")) + 
-  geom_line(data=A,aes(x=Ymd,y=MA,col="Visual")) +
-  labs(title=" Betelgeuse (Alf Orion) Magnitude Predctions",subtitle="Jan 1,2014- Nov. 12, 2022") + ylab("Visual Magnitude") +
-  scale_y_reverse()
+fcc %>%filter(Ymd>="2020-02-01") 
+head(fcc)
 ```
 ```{r}
+plot_ly(fcc) %>% add_lines(x=~Ymd,y=~Yhat) %>%
+  add_lines(data=A,x=~Ymd,y=~MA) %>%
+  layout(yaxis=list(autorange="reversed"))
 
 ```
+# Betelgeuse Complete set from AAVSO
 
+```{r Betelgeuse Betelgeuse Betelgeuse,ech=FALSE}
+betel <- fread("../db/Betelgeuse.txt")
+betel <- janitor::clean_names(betel)
+betel$magnitude <- as.numeric(betel$magnitude)
+# betel$Ymd <- julian2date(betel$jd)
+
+
+```
+```{r,echo=FALSE}
+
+betel_sum  <- betel %>% select(jd,star_name,magnitude,band) %>%
+      group_by(band) %>% summarise( Count = n()) 
+# betel_sum$band <- as.factor(betel_sum$band)
+summary(betel_sum)
+
+```
+```{r, echo=FALSE}
+betel_clean <- tsclean(betel$magnitude)
+summary(betel$magnitude)
+```
