@@ -1,5 +1,5 @@
 ---
-title: "AAVSO-Zapper.Rmd"
+title: "AAVSO-Zapper Summulator"
 author: "David J Jackson"
 date: "2/18/2020"
 output: html_document
@@ -12,43 +12,42 @@ library(data.table)
 library(plotly)
 
 ```
-
-## R Markdown
-```{r}
+```{r Import Data,echo=FALSE}
 rm(list=ls())
-AOri <-fread("../db/Alf_Ori-corrected.csv")
+AOri <- fread("../db/Alf_Ori-corrected.csv")
 AOri$Ymd <- as.Date(paste(AOri$year, AOri$month, AOri$day, sep = "-"))
-AOri <- AOri %>% select(Ymd,year,month,day,Vis) 
-AOri$Cts <- ifelse(AOri$Vis==0.00,0,1)
-# Ori$Loess <-lowess(AOri$Vis,f=0.1)
+AOri <- AOri %>% select(Ymd,year,month,Vis)
 summary(AOri)
-```
-```{r CAlculate Daily Stats}
- AOri1 <- AOri %>% select(Ymd,year,Vis) %>%
-   group_by(Ymd) %>% summarise(Mean = mean(Vis),
-                               Sum = sum(Vis),
-                               Obs = n())
-head(AOri1)
-         
-```
-```{r}
-AOri1$Dim <- AOri1$Mean + 1
-AOri1$Bright <- AOri1$Mean - 1
-head(AOri1)
-```
-```{r}
-AOri1_merg <- merge(AOri,AOri1,by="Ymd")
-AOri1_merged <- AOri1_merg %>% select(Ymd,Vis,Mean,Dim,Bright) %>%
-  filter(Ymd >="1964-01-01") 
-```
-```{r}
-AOri1_merged %>% select(Ymd) %>% group_by(Ymd) %>% summarise(count = n())
-```
-```{r}
- AOri1_merged$Zap <- AOri1_merged$Dim - AOri1_merged$Dim
-```
-```{r}
-AOri$MA <- forecast::ma(AOri$Vis,order=30)
-plot_ly(AOri) %>% add_lines(x=~Ymd,y=~MA)
+
 ```
 
+
+## The Whole Enchilada: Jan - 1918 to Feb. 2020
+```{r, echo=FALSE}
+# AOri$MA <- forecast::ma(AOri$Vis,order=30)
+plot_ly(AOri) %>% add_lines(x=~Ymd,y=~Vis) %>%
+  layout(yaxis=list(autorange="reversed"))
+```
+
+## AAVSO Zapper Simulator (DataVerificaton)
+
+Positive observations more than 1 magnitude brighter or fainter than the mean magnitude.
+
+Make sure you are comparing observations made using the same color filter with each other (don't try to compare a CCDB observation with a visual one, for instance). 
+
+Also,make sure you are comparing observations made at approximately the same time (for some stars, significant changes in behavior can occur in a very short time.)
+
+  *  Fainter-than observations that are fainter than t5>he mean curve.
+  *  Observations made during the "seasonal gap" of a star.
+  *  For novae and supernovae, positive observations made before outburst.
+
+```{r,echo=FALSE}
+box_plot <-AOri %>% filter(Ymd >="2019-12-01") 
+plot_ly(box_plot) %>% add_boxplot(x = ~Ymd, y = ~Vis) %>%
+  layout(yaxis=list(autorange="reversed"))
+
+
+```
+```{r}
+summary(box_plot)
+```
