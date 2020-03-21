@@ -1,0 +1,57 @@
+---
+title: "SIDC Yearly Data"
+author: "David J Jackson"
+date: "3/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+library(forecast)
+library(lubridate)
+library(prophet)
+
+```
+```{r,echo=FALSE}
+sidc_y <- data.table::fread("../db/sidc_yearly.csv") 
+  colnames(sidc_y) <-c("Year","ISN","SD","Obs","Dif")
+  sidc_y$Year <- as.integer(sidc_y$Year)
+  sidc_y$Ymd <- paste(sidc_y$Year, "01", "01", sep = "-")
+  sidc_y$Ymd <- ymd(sidc_y$Ymd)
+  
+```
+
+### Plot of ISN/R/Wolf by Year: 1700 - 2020
+
+```{r, echo=FALSE}
+sidc_y %>% plot_ly(x=~Year,y=~ISN) %>% add_lines() %>% layout(title="SIDC Yearly ISN: 1700 - 2020")
+```
+```{r,echo=FALSE}
+ISN_yearly <- sidc_y %>% select(Ymd,ISN)
+colnames(ISN_yearly) <- c("ds","y")
+```
+```{r, echo=FALSE}
+df <-ISN_yearly 
+m <- prophet(seasonality.mode="multiplicative")
+m <- add_seasonality(m, name="cycle_11year", period=12 * 11,fourier.order=40)
+m <- fit.prophet(m, df)
+future <- make_future_dataframe(m,periods=10,freq="year")
+forecast <- predict(m, future)
+plot(m, forecast) +ggtitle("SIDC Yearly ISN Prediction: 1700 - 2020") +ylab("Predicted ISN/R/Wolf") +xlab("Years" )
+```
+
+```{r,echo=FALSE}
+fcast <- data.table::as.data.table(forecast)
+fcast <- fcast %>% select(ds,yhat,yhat_upper,yhat_lower) %>% filter(ds >="2019-01-01")
+fcast$ds <- as.Date(fcast$ds)
+plot_ly(fcast) %>% add_lines(x=~ds,y=~yhat,name="yhat",name="yhat") %>% add_lines(x=~ds,y=~yhat_upper,name="yhat_upper") %>%
+  add_lines(x=~ds,y=~yhat_lower,name="yhat_lower") %>% layout(title="Predicton w/Upper and Lower Errors")
+```
+```{r,echo=FALSE}
+plot_ly(fcast) %>% add_lines(x=~ds,y=~yhat,name="yhat",name="yhat") %>%
+  layout(title="Prediction Using Prophet Library")
+```
+
+
