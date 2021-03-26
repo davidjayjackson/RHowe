@@ -12,7 +12,7 @@ library(tidyr)
 library(ggplot2)
 library(scales)
 library(RSQLite)
-db <- dbConnect(SQLite(), dbname="./RHOWE.sqlite3")
+
 ```
 
 ## Rodney Howe's  Data
@@ -28,7 +28,9 @@ Reference: Revised collection of the number of sunspot groups from 1610 to 2010.
 ### Read in Changes
 
 ```{r}
-changes <- read.table("./DATA/GNchanges.txt", sep = '\t',header = TRUE)
+rm(list=ls())
+db <- dbConnect(SQLite(), dbname="./RHOWE.sqlite3")
+changes <- read.csv("./DATA/GNchangesClean.csv")
 ```
 
 
@@ -49,9 +51,17 @@ observers <- read.csv("./DATA/GNobservers.csv")
 
 ```{r}
 observations$Ymd <- as.character(observations$Ymd)
+dbWriteTable(db, "changes",changes ,overwrite=TRUE)
+```
+
+```{r}
+observations$Ymd <- as.character(observations$Ymd)
 dbWriteTable(db, "observations",observations ,overwrite=TRUE)
 ```
 ```{r}
 dbWriteTable(db, "observers",observers ,overwrite=TRUE)
+```
+```{r}
+dbDisconnect(db)
 ```
 
