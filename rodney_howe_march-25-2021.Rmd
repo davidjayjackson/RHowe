@@ -1,0 +1,57 @@
+---
+title: "Rodney's Solar ISN Data"
+author: "David Jackson"
+date: "3/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(RSQLite)
+db <- dbConnect(SQLite(), dbname="./RHOWE.sqlite3")
+```
+
+## Rodney Howe's  Data
+
+If you have the time could you make an .Rmd file that loads these two data sets into a sqlite3 database?  Just the .csv files?  
+
+http://www.observations.be/silso/groupnumberv3
+
+Archive of raw group counts
+This is the current master archive of all base group observations used as input data for building the current group number series. 
+Reference: Revised collection of the number of sunspot groups from 1610 to 2010.J.M. Vaquero, L. Svalgaard, V.M.S. Carrasco, F. Clette, L. Lefevre, M.C. Gallego, R. Arlt, A.J.P. Aparicio, J.-G. Richard, and R. Howe, 2016: "Revised collection of the number of sunspot groups from 1610 to 2010", Solar Physics, submitted
+
+### Read in Changes
+
+```{r}
+changes <- read.table("./DATA/GNchanges.txt", sep = '\t',header = TRUE)
+```
+
+
+### Read Observations
+
+```{r}
+observations <- read.csv("./DATA/GNobservations.csv")
+observations$Ymd <- as.Date(paste(observations$YEAR, observations$MONTH, observations$DAY, sep = "-"))
+```
+
+### Read Observers
+
+```{r}
+observers <- read.csv("./DATA/GNobservers.csv")
+```
+
+### Create and Update SQLite DB 
+
+```{r}
+observations$Ymd <- as.character(observations$Ymd)
+dbWriteTable(db, "observations",observations ,overwrite=TRUE)
+```
+```{r}
+dbWriteTable(db, "observers",observers ,overwrite=TRUE)
+```
+
